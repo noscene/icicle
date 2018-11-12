@@ -1,4 +1,4 @@
-QUIET    = -q
+QUIET    =
 PLL      = pll.sv
 SRC      = $(sort $(wildcard *.sv) $(PLL))
 TOP      = top
@@ -12,24 +12,28 @@ ASC      = $(TOP).asc
 BIN      = $(TOP).bin
 TIME_RPT = $(TOP).rpt
 STAT     = $(TOP).stat
-BOARD   ?= ice40hx8k-b-evn
-PNR     ?= nextpnr
+BOARD   ?= doppler
+PNR     ?= arachne-pnr
 PCF      = boards/$(BOARD).pcf
-FREQ_PLL = 24
-TARGET   = riscv64-unknown-elf
+FREQ_PLL = 16
+TARGET   = riscv32-unknown-elf
 AS       = $(TARGET)-as
 ASFLAGS  = -march=rv32i -mabi=ilp32
 LD       = $(TARGET)-gcc
 LDFLAGS  = $(CFLAGS) -Wl,-Tprogmem.lds
 CC       = $(TARGET)-gcc
-CFLAGS   = -march=rv32i -mabi=ilp32 -Wall -Wextra -pedantic -DFREQ=$(FREQ_PLL)000000 -Os -ffreestanding -nostartfiles -g
+CFLAGS   = -march=rv32i -mabi=ilp32 -Wall  -mno-relax  -Wextra -pedantic -DFREQ=$(FREQ_PLL)000000 -Os -ffreestanding -nostartfiles -g
 OBJCOPY  = $(TARGET)-objcopy
 
 include boards/$(BOARD).mk
 
 .PHONY: all clean syntax time stat flash
 
-all: $(BIN)
+all: $(BIN) header
+
+header: $(BIN)
+		xxd -i $(BIN) > $(BIN).h
+		sed -i -r 's/unsigned/const unsigned/g' $(BIN).h
 
 clean:
 	$(RM) $(BLIF) $(JSON) $(ASC_SYN) $(ASC) $(BIN) $(PLL) $(TIME_RPT) $(STAT) progmem_syn.hex progmem.hex progmem.bin progmem.o start.o start.s progmem progmem.lds defines.sv

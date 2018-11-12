@@ -7,6 +7,7 @@
 `include "sync.sv"
 `include "timer.sv"
 `include "uart.sv"
+`include "zmLED4x4.v"
 
 `ifdef SPI_FLASH
 `define RESET_VECTOR 32'h01100000
@@ -29,6 +30,9 @@ module top (
 
     /* LEDs */
     output logic [7:0] leds,
+
+    // Doppler LED 4x4
+    output  [3:0] kled  , output [3:0]  aled,
 
     /* UART */
     input uart_rx,
@@ -67,7 +71,7 @@ module top (
 
     logic pll_clk;
     logic pll_locked_async;
-
+    // icepll -i 48 -o 16 -m -f pll.sv 
     pll pll (
         .clock_in(clk),
         .clock_out(pll_clk),
@@ -173,6 +177,7 @@ module top (
     logic uart_sel;
     logic timer_sel;
     logic flash_sel;
+    logic led4x4_sel;
 
     always_comb begin
         ram_sel = 0;
@@ -180,12 +185,14 @@ module top (
         uart_sel = 0;
         timer_sel = 0;
         flash_sel = 0;
+        led4x4_sel = 0;
 
         casez (mem_address)
             32'b00000000_00000000_????????_????????: ram_sel = 1;
             32'b00000000_00000001_00000000_000000??: leds_sel = 1;
             32'b00000000_00000010_00000000_0000????: uart_sel = 1;
             32'b00000000_00000011_00000000_0000????: timer_sel = 1;
+            32'b00000000_00000100_00000000_0000????: led4x4_sel = 1;
             32'b00000001_????????_????????_????????: flash_sel = 1;
         endcase
     end
@@ -215,6 +222,37 @@ module top (
         if (leds_sel && mem_write_mask[0])
             leds <= mem_write_value[7:0];
     end
+
+
+
+    // Doppler LED4x4 Stuff
+    wire [3:0]  kled_tri;			// connect katode via SB_IO modules to allow high impadance  or 3.3V
+     reg [15:0]  ledValue4x4	;			// data register for 16 leds
+     SB_IO #( .PIN_TYPE(6'b 1010_01), .PULLUP(1'b 0) ) led_io1 ( .PACKAGE_PIN(kled[0]), .OUTPUT_ENABLE(kled_tri[0]), .D_OUT_0(1'b1)  );
+     SB_IO #( .PIN_TYPE(6'b 1010_01), .PULLUP(1'b 0) ) led_io2 ( .PACKAGE_PIN(kled[1]), .OUTPUT_ENABLE(kled_tri[1]), .D_OUT_0(1'b1)  );
+     SB_IO #( .PIN_TYPE(6'b 1010_01), .PULLUP(1'b 0) ) led_io3 ( .PACKAGE_PIN(kled[2]), .OUTPUT_ENABLE(kled_tri[2]), .D_OUT_0(1'b1)  );
+     SB_IO #( .PIN_TYPE(6'b 1010_01), .PULLUP(1'b 0) ) led_io4 ( .PACKAGE_PIN(kled[3]), .OUTPUT_ENABLE(kled_tri[3]), .D_OUT_0(1'b1)  );
+     LED4x4  myleds (.clk(pll_clk),	.ledbits(ledValue4x4)	,  .aled(aled), .kled_tri(kled_tri) );
+     always_ff @(posedge pll_clk) begin
+          if (led4x4_sel && mem_write_mask[0])
+            ledValue4x4   <= mem_write_value[15:0];
+        //     ledValue4x4   <= mem_address[15:0];
+     end
+     // END DOPPLER LED4x4
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     logic [31:0] uart_read_value;
     logic uart_ready;

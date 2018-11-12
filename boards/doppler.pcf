@@ -1,0 +1,31 @@
+# using the internal 48MHz hifreq osc
+#set_io clk       35
+set_io flash_clk 14
+set_io flash_csn 15
+set_io flash_io0 16
+set_io flash_io1 17
+
+set_io leds[0]   11
+set_io leds[1]   12
+set_io leds[2]   13
+set_io leds[3]   18
+set_io leds[4]   19
+set_io leds[5]   20
+set_io leds[6]   21
+set_io leds[7]   23
+set_io uart_rx   41
+set_io uart_tx   40
+
+
+set_io aled[0] 26
+set_io aled[1] 27
+set_io aled[2] 28
+set_io aled[3] 31
+set_io kled[0] 42
+set_io kled[1] 43
+set_io kled[2] 44
+set_io kled[3] 45
+
+# Buttons on doppler
+set_io button1 2			# DPIO
+set_io button2 3

@@ -6,6 +6,7 @@
 #define UART_DATA   *((volatile  int32_t *) 0x00020008)
 #define MTIME       *((volatile uint64_t *) 0x00030000)
 #define MTIMECMP    *((volatile uint64_t *) 0x00030008)
+#define LED4X4      *((volatile uint32_t *) 0x00040000)
 
 #define UART_STATUS_TX_READY 0x1
 #define UART_STATUS_RX_READY 0x2
@@ -24,6 +25,12 @@ static void uart_puts(const char *str) {
     }
 }
 
+static inline void delay(void) {
+    for (uint32_t i = 0 ; i < 100000 ; i ++)
+      asm volatile ("nop");
+}
+
+
 static inline uint32_t rdcycle(void) {
     uint32_t cycle;
     asm volatile ("rdcycle %0" : "=r"(cycle));
@@ -32,12 +39,14 @@ static inline uint32_t rdcycle(void) {
 
 int main() {
     UART_BAUD = FREQ / BAUD_RATE;
-    LEDS = 0xAA;
-
+    // LEDS = 0xAA;
+    uint16_t ledValue=1;
     for (;;) {
         uart_puts("Hello, world!\r\n");
+        LED4X4 = ledValue--;
+        delay();
 
-        uint32_t start = rdcycle();
-        while ((rdcycle() - start) <= FREQ);
+        //uint32_t start = rdcycle();
+        // while ((rdcycle() - start) <= FREQ);
     }
 }
