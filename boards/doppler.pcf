@@ -1,31 +1,49 @@
 # using the internal 48MHz hifreq osc
-#set_io clk       35
-set_io flash_clk 14
-set_io flash_csn 15
-set_io flash_io0 16
-set_io flash_io1 17
+#set_io clk       35 						# no external clk on up5k
+#set_io flash_clk 14
+#set_io flash_csn 15
+#set_io flash_io0 16
+#set_io flash_io1 17
 
-set_io leds[0]   11
-set_io leds[1]   12
-set_io leds[2]   13
-set_io leds[3]   18
-set_io leds[4]   19
-set_io leds[5]   20
-set_io leds[6]   21
-set_io leds[7]   23
-set_io uart_rx   41
-set_io uart_tx   40
+# Pins Breakout Downside
+set_io hardware_pins[0]   11		# F0
+set_io hardware_pins[1]   12		# F1	TRUE -> 21
+set_io hardware_pins[2]   13		# F2
+set_io hardware_pins[3]   18		# F3
+set_io hardware_pins[4]   19		# F4
+set_io hardware_pins[5]   20		# F5  GBIN3
+set_io hardware_pins[6]   21		# F6  COMP -> 12
+set_io hardware_pins[7]   23		# F7
 
+
+#set_io hardware_pins[8]   25		# F8
+# Buttons on doppler
+#set_io hardware_pins[9]   2			# BUTTON1
+#set_io hardware_pins[10] 	3			# BUTTON2
+
+# Pins Breakout Upside
+#set_io hardware_pins[11]  41		# F9
+#set_io hardware_pins[12]  40		# F10
+#set_io hardware_pins[13]  39		# F11
+#set_io hardware_pins[14]  38		# F12
+#set_io hardware_pins[15]  37		# F13 TRUE -> 34  GBIN1
+#set_io hardware_pins[16]  36		#	F14
+#set_io hardware_pins[17]  35		# R0 LED		GBIN0
+#set_io hardware_pins[18]  34		# R1 LED  COMP -> 37
+#set_io hardware_pins[19]  32		# R2 LED#
+
+#set_io hardware_pins[20]  9		  # shared samd pa21 9
+#set_io hardware_pins[21]  10		# shared samd pa22 10
+
+set_io uart_rx   6		# shared samd pa19 6
+set_io uart_tx   4		# shared samd pa20 7
 
 set_io aled[0] 26
 set_io aled[1] 27
 set_io aled[2] 28
 set_io aled[3] 31
+
 set_io kled[0] 42
 set_io kled[1] 43
-set_io kled[2] 44
+set_io kled[2] 44		# GBIN6
 set_io kled[3] 45
-
-# Buttons on doppler
-set_io button1 2			# DPIO
-set_io button2 3

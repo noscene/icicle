@@ -8,6 +8,11 @@
 #define MTIMECMP    *((volatile uint64_t *) 0x00030008)
 #define LED4X4      *((volatile uint32_t *) 0x00040000)
 
+#define GPIO_DIR   *((volatile uint32_t *)  0x00050000) // lower 8 Bits are Pins F0----F7 0 = In | 1 = Out
+#define GPIO_DATA  *((volatile uint32_t *)  0x00050004) // lower 8 Bits are PinState In or Out
+
+
+
 #define UART_STATUS_TX_READY 0x1
 #define UART_STATUS_RX_READY 0x2
 
@@ -38,14 +43,17 @@ static inline uint32_t rdcycle(void) {
 }
 
 int main() {
+    GPIO_DIR = 0x0;  // all inputs
+
     UART_BAUD = FREQ / BAUD_RATE;
     // LEDS = 0xAA;
-    uint16_t ledValue=1;
+    uint32_t ledValue=1;
     for (;;) {
-        uart_puts("Hello, world!\r\n");
-        LED4X4 = ledValue--;
-        delay();
-
+        // uart_puts("Hello, world!\r\n");
+        LED4X4 = (GPIO_DATA);
+        // delay();
+        // ledValue+=1;
+        // GPIO_DATA=ledValue;
         //uint32_t start = rdcycle();
         // while ((rdcycle() - start) <= FREQ);
     }
