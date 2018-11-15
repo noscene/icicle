@@ -18,8 +18,8 @@ set_io hardware_pins[7]   23		# F7
 
 #set_io hardware_pins[8]   25		# F8
 # Buttons on doppler
-#set_io hardware_pins[9]   2			# BUTTON1
-#set_io hardware_pins[10] 	3			# BUTTON2
+set_io button1   2			# BUTTON1
+set_io button2 	3			# BUTTON2
 
 # Pins Breakout Upside
 #set_io hardware_pins[11]  41		# F9
@@ -35,9 +35,11 @@ set_io hardware_pins[7]   23		# F7
 #set_io hardware_pins[20]  9		  # shared samd pa21 9
 #set_io hardware_pins[21]  10		# shared samd pa22 10
 
+# UART Pins are shared with samd51
 set_io uart_rx   6		# shared samd pa19 6
 set_io uart_tx   4		# shared samd pa20 7
 
+# led matrix outputs
 set_io aled[0] 26
 set_io aled[1] 27
 set_io aled[2] 28

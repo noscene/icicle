@@ -9,6 +9,7 @@
 `include "uart.sv"
 `include "zmLED4x4.v"
 `include "gpio_up5k.sv"
+`include "doppler_buttons.sv"
 
 `ifdef SPI_FLASH
 `define RESET_VECTOR 32'h01100000
@@ -35,6 +36,7 @@ module top (
     // Doppler LED 4x4
     output  [3:0] kled  , output [3:0]  aled,
     inout   [7:0] hardware_pins,
+    input   button1,button2,
     /* UART */
     input uart_rx,
     output logic uart_tx
@@ -114,8 +116,8 @@ module top (
     logic [31:0] mem_write_value;
     logic mem_ready;
 
-    assign mem_read_value = ram_read_value | gpio_read_value | uart_read_value | timer_read_value | flash_read_value;
-    assign mem_ready = ram_ready | gpio_ready | uart_ready | timer_ready | flash_ready;
+    assign mem_read_value = ram_read_value | gpio_read_value | led4x4_read_value | button_read_value | uart_read_value | timer_read_value | flash_read_value;
+    assign mem_ready = ram_ready | gpio_ready | button_ready | uart_ready | timer_ready | flash_ready;
 
     bus_arbiter bus_arbiter (
         .clk(pll_clk),
@@ -146,8 +148,8 @@ module top (
         .ready_in(mem_ready)
     );
 
+    // the RISC-V CPU
     logic [63:0] cycle;
-
     rv32 #(
         .RESET_VECTOR(`RESET_VECTOR)
     ) rv32 (
@@ -174,29 +176,32 @@ module top (
     );
 
     logic ram_sel;
-    logic leds_sel;
+    // logic leds_sel;
     logic uart_sel;
     logic timer_sel;
     logic flash_sel;
     logic led4x4_sel;
     logic gpio_sel;
+    logic button_sel;
 
     always_comb begin
         ram_sel = 0;
-        leds_sel = 0;
+        // leds_sel = 0;
         uart_sel = 0;
         timer_sel = 0;
         flash_sel = 0;
         led4x4_sel = 0;
         gpio_sel = 0;
+        button_sel = 0;
 
         casez (mem_address)
             32'b00000000_00000000_????????_????????: ram_sel = 1;
-            32'b00000000_00000001_00000000_000000??: leds_sel = 1;
+            // 32'b00000000_00000001_00000000_000000??: leds_sel = 1;
             32'b00000000_00000010_00000000_0000????: uart_sel = 1;
             32'b00000000_00000011_00000000_0000????: timer_sel = 1;
             32'b00000000_00000100_00000000_0000????: led4x4_sel = 1;
             32'b00000000_00000101_00000000_0000????: gpio_sel = 1;
+            32'b00000000_00000110_00000000_0000????: button_sel = 1;
             32'b00000001_????????_????????_????????: flash_sel = 1;
         endcase
     end
@@ -219,10 +224,7 @@ module top (
 /*
     logic [31:0] leds_read_value;
     logic leds_ready;
-
-    assign leds_read_value = {24'b0, leds_sel ? leds : 8'b0};
     assign leds_ready = leds_sel;
-
     always_ff @(posedge pll_clk) begin
         if (leds_sel && mem_write_mask[0])
             leds <= mem_write_value[7:0];
@@ -230,25 +232,20 @@ module top (
 */
 
 // `ifdef DOPPLER_LED4X4
-    // Doppler LED4x4 Stuff
-    wire [3:0]  kled_tri;			// connect katode via SB_IO modules to allow high impadance  or 3.3V
-     reg [15:0]  ledValue4x4	;			// data register for 16 leds
-     SB_IO #( .PIN_TYPE(6'b 1010_01), .PULLUP(1'b 0) ) led_io1 ( .PACKAGE_PIN(kled[0]), .OUTPUT_ENABLE(kled_tri[0]), .D_OUT_0(1'b1)  );
-     SB_IO #( .PIN_TYPE(6'b 1010_01), .PULLUP(1'b 0) ) led_io2 ( .PACKAGE_PIN(kled[1]), .OUTPUT_ENABLE(kled_tri[1]), .D_OUT_0(1'b1)  );
-     SB_IO #( .PIN_TYPE(6'b 1010_01), .PULLUP(1'b 0) ) led_io3 ( .PACKAGE_PIN(kled[2]), .OUTPUT_ENABLE(kled_tri[2]), .D_OUT_0(1'b1)  );
-     SB_IO #( .PIN_TYPE(6'b 1010_01), .PULLUP(1'b 0) ) led_io4 ( .PACKAGE_PIN(kled[3]), .OUTPUT_ENABLE(kled_tri[3]), .D_OUT_0(1'b1)  );
-     LED4x4  myleds (.clk(pll_clk),	.ledbits(ledValue4x4)	,  .aled(aled), .kled_tri(kled_tri) );
+     // Doppler LED4x4 Stuff
+     reg    [15:0]  ledValue4x4;			 // data register for 16 leds
+     logic  [31:0]  led4x4_read_value;
+     LED4x4  myleds (.clk(pll_clk),	.ledbits(ledValue4x4)	,  .aled(aled), .kled(kled) );
      always_ff @(posedge pll_clk) begin
-          if (led4x4_sel && mem_write_mask[0])
+          if (led4x4_sel && mem_write_mask[0] && mem_write_mask[1])
             ledValue4x4   <= mem_write_value[15:0];
-        //     ledValue4x4   <= mem_address[15:0];
      end
-     // END DOPPLER LED4x4
+     assign led4x4_read_value = {16'b0, led4x4_sel ? ledValue4x4 : 16'b0};
 
+     // END DOPPLER LED4x4
 
      logic [31:0] gpio_read_value;
      logic gpio_ready;
-
      gpio_up5k gpios (
          .clk(pll_clk),
          .reset(reset),
@@ -265,7 +262,24 @@ module top (
          .ready_out(gpio_ready)
      );
 
+     logic [31:0] button_read_value;
+     logic button_ready;
+     doppler_buttons btns (
+         .clk(pll_clk),
+         .reset(reset),
 
+         .button1(button1),
+         .button2(button2),
+
+         /* memory bus */
+         .address_in(mem_address),
+         .sel_in(button_sel),
+         .read_in(mem_read),
+         .read_value_out(button_read_value),
+         .write_mask_in(mem_write_mask),
+         .write_value_in(mem_write_value),
+         .ready_out(button_ready)
+     );
 
 // `endif
 

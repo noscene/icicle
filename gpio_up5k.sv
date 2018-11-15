@@ -24,7 +24,7 @@ module gpio_up5k (
 assign ready_out = sel_in;
 
 logic [7:0]	port_dir;
-wire  [7:0]	out_value;
+logic [7:0]	out_value;
 wire  [7:0]	in_value;
 
 // define  8 SB_IO in a single block on Doppler Hardware Pins F0....F7

@@ -1,22 +1,56 @@
 #include <stdint.h>
 
-#define LEDS        *((volatile uint32_t *) 0x00010000)
-#define UART_BAUD   *((volatile uint32_t *) 0x00020000)
+/*          DOPPLER-Board-Layout:
+ *                                                                                    ---------------- FPGA Pins ------------------
+ *                                                     DAC1      SCK  MOSI DAC0      LedR LedG LedB       CT1            CP0
+ * DIL Pin 48   47   46   45   44   43   42   41   40   39   38   37   36   35   34   33   32   31   30   29   28   27   26   25
+ *       |--O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O---|
+ * name  | VIN  5V  3.3V  A10  A9   A8   A7   A6   A5   A4   A3   A2   A1   A0   GND  R2   R1   R0   F14  F13  F12  F11  F10  F9   |
+ * alt   | VIN  5V  3.3V PA11 PA10 PA09 PA08 PA07 PA06 PA05 PA04 PB09 PB08 PA02  GND  41   40   39   38   37   36   35   34   32   |
+ *       |                                                                                            ö  ö  ö  ö                   |
+ *      |                                                                                             ö  ö  ö  ö         |BTN:S1|  |
+ *     | USB                           DOPPLER: SamD51 <- SPI -> icE40        |BTN:RESET|             ö  ö  ö  ö                   |
+ *      |                                                                                             ö  ö  ö  ö         |BTN:S2|  |
+ *       |                                                                                                                         |
+ * alt   | GND PA13 PA12 PB11 PA14 PA15 PB10 PA31 PA30  RES PA19 PA20 PA21 PA22 3.3V  11   12   13   18   19   20   21   23   25   |
+ * name  | GND   0    1    2    3    4    5                   6    7    8    9  3.3V  F0   F1   F2   F3   F4   F5   F6   F7   F8   |
+ *       L--O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O----O---|
+ * DIL Pin  1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21   22   23   24
+ *             SCL  SDA   MISO           SS   SWD  SWC RES                                 CT0                      CP0
+ *             -- I2C--                       --- SWD  ---   ----- Shared  -----      ---------------- FPGA Pins ------------------
+ */
+
+/*  Arduino Sketch to Upload into FPGA
+#include <ICEClass.h>
+#include "/Users/svenbraun/Documents/GitHub/icicle/top.bin.h"
+ICEClass ice40;
+
+void setup() {
+  ice40.upload(top_bin,sizeof(top_bin)); // Upload BitStream Firmware to FPGA -> see variant.h
+}
+
+void loop() {
+  delay(1000);
+}
+*/
+
+// Here we define some Custom Hardware Register ... see top.sv
+//#define LEDS        *((volatile uint32_t *) 0x00010000) // need to replace
+#define UART_BAUD   *((volatile uint32_t *) 0x00020000)  // uart_rx = PA19  , uart_tx = PA20
 #define UART_STATUS *((volatile uint32_t *) 0x00020004)
 #define UART_DATA   *((volatile  int32_t *) 0x00020008)
+
 #define MTIME       *((volatile uint64_t *) 0x00030000)
 #define MTIMECMP    *((volatile uint64_t *) 0x00030008)
-#define LED4X4      *((volatile uint32_t *) 0x00040000)
 
-#define GPIO_DIR   *((volatile uint32_t *)  0x00050000) // lower 8 Bits are Pins F0----F7 0 = In | 1 = Out
-#define GPIO_DATA  *((volatile uint32_t *)  0x00050004) // lower 8 Bits are PinState In or Out
+#define LED4X4      *((volatile uint32_t *) 0x00040000) // 16Bit Value for all LEDs
+#define GPIO_DIR    *((volatile uint32_t *) 0x00050000) // lower 8 Bits are Pins F0----F7 0 = In | 1 = Out
+#define GPIO_DATA   *((volatile uint32_t *) 0x00050004) // lower 8 Bits are PinState In or Out
+#define BUTTONS     *((volatile uint32_t *) 0x00060000) // 2 buttons in the lower 2 bits
 
-
-
-#define UART_STATUS_TX_READY 0x1
-#define UART_STATUS_RX_READY 0x2
-
-#define BAUD_RATE 9600
+#define UART_STATUS_TX_READY  0x1
+#define UART_STATUS_RX_READY  0x2
+#define BAUD_RATE             9600
 
 static void uart_putc(char c) {
     while (!(UART_STATUS & UART_STATUS_TX_READY));
@@ -30,11 +64,10 @@ static void uart_puts(const char *str) {
     }
 }
 
-static inline void delay(void) {
-    for (uint32_t i = 0 ; i < 100000 ; i ++)
+static void delay(uint32_t dly) {
+    for (uint32_t i = 0 ; i < dly ; i ++)
       asm volatile ("nop");
 }
-
 
 static inline uint32_t rdcycle(void) {
     uint32_t cycle;
@@ -44,17 +77,16 @@ static inline uint32_t rdcycle(void) {
 
 int main() {
     GPIO_DIR = 0x0;  // all inputs
-
     UART_BAUD = FREQ / BAUD_RATE;
-    // LEDS = 0xAA;
-    uint32_t ledValue=1;
     for (;;) {
         // uart_puts("Hello, world!\r\n");
-        LED4X4 = (GPIO_DATA);
-        // delay();
-        // ledValue+=1;
-        // GPIO_DATA=ledValue;
-        //uint32_t start = rdcycle();
-        // while ((rdcycle() - start) <= FREQ);
+        // uint32_t start = rdcycle();
+        // while ((rdcycle() - start) <= FREQ); // wait a second
+        switch(BUTTONS){
+          case 0: (LED4X4)++;   break;
+          case 1: (LED4X4)--;   break;
+          case 3: (LED4X4)+=16; break;
+        }
+        delay(20000);
     }
 }
