@@ -48,6 +48,10 @@ void loop() {
 #define GPIO_DATA   *((volatile uint32_t *) 0x00050004) // lower 8 Bits are PinState In or Out
 #define BUTTONS     *((volatile uint32_t *) 0x00060000) // 2 buttons in the lower 2 bits
 
+#define OSC_PITCH   *((volatile uint32_t *) 0x00070000) // 2 buttons in the lower 2 bits
+#define VCA_LEVEL   *((volatile uint32_t *) 0x00070004) // 2 buttons in the lower 2 bits
+
+
 #define UART_STATUS_TX_READY  0x1
 #define UART_STATUS_RX_READY  0x2
 #define BAUD_RATE             9600
@@ -75,9 +79,31 @@ static inline uint32_t rdcycle(void) {
     return cycle;
 }
 
+/*
+// soft FIFO
+#define CON_OUT_BUF_SIZE         8 // Buffer masks
+#define CON_OUT_MASK             (CON_OUT_BUF_SIZE-1ul) // Buffer read / write macros
+#define CON_BUF_RESET(Fifo)      (Fifo->rd_idx = Fifo->wr_idx = 0)
+#define CON_BUF_WR(Fifo, dataIn) (Fifo->data[CON_OUT_MASK &  Fifo->wr_idx++] = (dataIn))
+#define CON_BUF_RD(Fifo)         (Fifo->data[CON_OUT_MASK & Fifo->rd_idx++])
+#define CON_BUF_EMPTY(Fifo)      ((CON_OUT_MASK & Fifo->rd_idx) == (CON_OUT_MASK & Fifo->wr_idx))
+#define CON_BUF_FULL(Fifo)       ((CON_OUT_MASK & Fifo->rd_idx) == (CON_OUT_MASK & Fifo->wr_idx+1))
+#define CON_BUF_COUNT(Fifo)      ((CON_OUT_MASK & Fifo.wr_idx) - (CON_OUT_MASK & Fifo.rd_idx))
+typedef struct {
+  unsigned uint32_t data[CON_OUT_BUF_SIZE];
+  unsigned int wr_idx;
+  unsigned int rd_idx;
+} CON_Fifo_t;
+*/
+
+
 int main() {
     GPIO_DIR = 0x0;  // all inputs
     UART_BAUD = FREQ / BAUD_RATE;
+    uint32_t pitch = 500;
+    uint16_t vca = 32000;
+    OSC_PITCH = pitch;
+    VCA_LEVEL = vca;
     for (;;) {
         // uart_puts("Hello, world!\r\n");
         // uint32_t start = rdcycle();
@@ -87,6 +113,14 @@ int main() {
           case 1: (LED4X4)--;   break;
           case 3: (LED4X4)+=16; break;
         }
-        delay(20000);
+        delay(800000);
+        pitch+=1024;
+        if(pitch > 8000){
+          pitch=500;
+          vca = 32000;
+        }
+        vca-=4000;
+        VCA_LEVEL = vca;
+        OSC_PITCH = pitch;
     }
 }

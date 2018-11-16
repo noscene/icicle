@@ -22,9 +22,9 @@ set_io button1   2			# BUTTON1
 set_io button2 	3			# BUTTON2
 
 # Pins Breakout Upside
-#set_io hardware_pins[11]  41		# F9
-#set_io hardware_pins[12]  40		# F10
-#set_io hardware_pins[13]  39		# F11
+set_io F9   32		# F9
+set_io F10  34		# F10
+set_io F11  35		# F11
 #set_io hardware_pins[14]  38		# F12
 #set_io hardware_pins[15]  37		# F13 TRUE -> 34  GBIN1
 #set_io hardware_pins[16]  36		#	F14

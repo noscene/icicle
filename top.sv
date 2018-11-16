@@ -10,6 +10,7 @@
 `include "zmLED4x4.v"
 `include "gpio_up5k.sv"
 `include "doppler_buttons.sv"
+`include "audioSynth.v"
 
 `ifdef SPI_FLASH
 `define RESET_VECTOR 32'h01100000
@@ -37,6 +38,7 @@ module top (
     output  [3:0] kled  , output [3:0]  aled,
     inout   [7:0] hardware_pins,
     input   button1,button2,
+    output  F9,F10,F11,
     /* UART */
     input uart_rx,
     output logic uart_tx
@@ -116,8 +118,8 @@ module top (
     logic [31:0] mem_write_value;
     logic mem_ready;
 
-    assign mem_read_value = ram_read_value | gpio_read_value | led4x4_read_value | button_read_value | uart_read_value | timer_read_value | flash_read_value;
-    assign mem_ready = ram_ready | gpio_ready | button_ready | uart_ready | timer_ready | flash_ready;
+    assign mem_read_value = ram_read_value | gpio_read_value | synth_read_value | led4x4_read_value | button_read_value | uart_read_value | timer_read_value | flash_read_value;
+    assign mem_ready = ram_ready | gpio_ready | synth_ready | button_ready | uart_ready | timer_ready | flash_ready;
 
     bus_arbiter bus_arbiter (
         .clk(pll_clk),
@@ -183,6 +185,7 @@ module top (
     logic led4x4_sel;
     logic gpio_sel;
     logic button_sel;
+    logic synth_sel;
 
     always_comb begin
         ram_sel = 0;
@@ -193,6 +196,7 @@ module top (
         led4x4_sel = 0;
         gpio_sel = 0;
         button_sel = 0;
+        synth_sel = 0;
 
         casez (mem_address)
             32'b00000000_00000000_????????_????????: ram_sel = 1;
@@ -202,6 +206,7 @@ module top (
             32'b00000000_00000100_00000000_0000????: led4x4_sel = 1;
             32'b00000000_00000101_00000000_0000????: gpio_sel = 1;
             32'b00000000_00000110_00000000_0000????: button_sel = 1;
+            32'b00000000_00000111_00000000_0000????: synth_sel = 1;
             32'b00000001_????????_????????_????????: flash_sel = 1;
         endcase
     end
@@ -261,6 +266,30 @@ module top (
          .write_value_in(mem_write_value),
          .ready_out(gpio_ready)
      );
+
+     logic [31:0] synth_read_value;
+     logic synth_ready;
+     audiosynth asynth (
+         .clk(pll_clk),
+         .reset(reset),
+
+         .I2S_LR(F9),
+     		 .I2S_BCLK(F11), // SET F12 to GND -> SCL
+     		 .I2S_DATA(F10),
+
+         /* memory bus */
+         .address_in(mem_address),
+         .sel_in(synth_sel),
+         .read_in(mem_read),
+         .read_value_out(synth_read_value),
+         .write_mask_in(mem_write_mask),
+         .write_value_in(mem_write_value),
+         .ready_out(synth_ready)
+     );
+
+
+
+
 
      logic [31:0] button_read_value;
      logic button_ready;
