@@ -51,6 +51,9 @@ void loop() {
 #define OSC_PITCH   *((volatile uint32_t *) 0x00070000) // 2 buttons in the lower 2 bits
 #define VCA_LEVEL   *((volatile uint32_t *) 0x00070004) // 2 buttons in the lower 2 bits
 
+#define SPI_DATA    *((volatile uint32_t *) 0x00080000) // spi data
+#define SPI_STATUS  *((volatile uint32_t *) 0x00080004) // spi_cs
+
 
 #define UART_STATUS_TX_READY  0x1
 #define UART_STATUS_RX_READY  0x2
@@ -79,9 +82,13 @@ static inline uint32_t rdcycle(void) {
     return cycle;
 }
 
-/*
+// some Bit helper
+#define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
+#define BIT_SET(a,b) ((a) |= (1ULL<<(b)))
+#define BIT_CLEAR(a,b) ((a) &= ~(1ULL<<(b)))
+
 // soft FIFO
-#define CON_OUT_BUF_SIZE         8 // Buffer masks
+#define CON_OUT_BUF_SIZE         7 // Buffer masks
 #define CON_OUT_MASK             (CON_OUT_BUF_SIZE-1ul) // Buffer read / write macros
 #define CON_BUF_RESET(Fifo)      (Fifo->rd_idx = Fifo->wr_idx = 0)
 #define CON_BUF_WR(Fifo, dataIn) (Fifo->data[CON_OUT_MASK &  Fifo->wr_idx++] = (dataIn))
@@ -90,11 +97,11 @@ static inline uint32_t rdcycle(void) {
 #define CON_BUF_FULL(Fifo)       ((CON_OUT_MASK & Fifo->rd_idx) == (CON_OUT_MASK & Fifo->wr_idx+1))
 #define CON_BUF_COUNT(Fifo)      ((CON_OUT_MASK & Fifo.wr_idx) - (CON_OUT_MASK & Fifo.rd_idx))
 typedef struct {
-  unsigned uint32_t data[CON_OUT_BUF_SIZE];
-  unsigned int wr_idx;
-  unsigned int rd_idx;
+  uint32_t data[CON_OUT_BUF_SIZE];
+  uint16_t wr_idx;
+  uint16_t rd_idx;
 } CON_Fifo_t;
-*/
+
 
 
 int main() {
@@ -104,16 +111,25 @@ int main() {
     uint16_t vca = 32000;
     OSC_PITCH = pitch;
     VCA_LEVEL = vca;
+    SPI_DATA = 5555;
+    LED4X4 = 1;
     for (;;) {
         // uart_puts("Hello, world!\r\n");
         // uint32_t start = rdcycle();
         // while ((rdcycle() - start) <= FREQ); // wait a second
+/*
         switch(BUTTONS){
           case 0: (LED4X4)++;   break;
           case 1: (LED4X4)--;   break;
           case 3: (LED4X4)+=16; break;
         }
-        delay(800000);
+*/
+        while(SPI_STATUS==1);
+//        (LED4X4)++;
+        (LED4X4)=(SPI_DATA);
+        while(SPI_STATUS==0);
+
+        //delay(800000);
         pitch+=1024;
         if(pitch > 8000){
           pitch=500;
@@ -122,5 +138,6 @@ int main() {
         vca-=4000;
         VCA_LEVEL = vca;
         OSC_PITCH = pitch;
+
     }
 }

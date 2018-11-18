@@ -11,6 +11,8 @@
 `include "gpio_up5k.sv"
 `include "doppler_buttons.sv"
 `include "audioSynth.v"
+`include "spi_slave.v"
+
 
 `ifdef SPI_FLASH
 `define RESET_VECTOR 32'h01100000
@@ -38,7 +40,10 @@ module top (
     output  [3:0] kled  , output [3:0]  aled,
     inout   [7:0] hardware_pins,
     input   button1,button2,
-    output  F9,F10,F11,
+    output  F9,F10,F11,   // I2S
+    output cfg_so,
+    input  cfg_cs,cfg_si,cfg_sck,
+
     /* UART */
     input uart_rx,
     output logic uart_tx
@@ -63,7 +68,7 @@ module top (
     );
 `endif
 
-`ifdef SPI_FLASH
+  `ifdef SPI_FLASH
     SB_IO #(
         .PIN_TYPE(6'b1010_01)
     ) flash_io [1:0] (
@@ -72,27 +77,36 @@ module top (
         .D_IN_0({flash_io1_in, flash_io0_in}),
         .D_OUT_0({flash_io1_out, flash_io0_out})
     );
-`endif
+    `endif
 
     logic pll_clk;
-    logic pll_locked_async;
+    logic pll_locked;
+    logic reset;
+
+    /*
     // icepll -i 48 -o 16 -m -f pll.sv
     pll pll (
         .clock_in(clk),
         .clock_out(pll_clk),
         .locked(pll_locked_async)
     );
-
-    logic pll_locked;
-    logic reset;
-
     assign reset = ~pll_locked;
-
+    logic pll_locked_async;
     sync sync (
         .clk(pll_clk),
         .in(pll_locked_async),
         .out(pll_locked)
     );
+    */
+
+    // clk divider instad of pll
+    reg [1:0] clkdivider;
+    always @(posedge clk) begin
+      clkdivider <= clkdivider +1;
+    end
+    assign pll_clk = clkdivider[1]; // 12Mhz
+    assign reset = 0;
+
 
     /* instruction memory bus */
     logic [31:0] instr_address;
@@ -118,19 +132,17 @@ module top (
     logic [31:0] mem_write_value;
     logic mem_ready;
 
-    assign mem_read_value = ram_read_value | gpio_read_value | synth_read_value | led4x4_read_value | button_read_value | uart_read_value | timer_read_value | flash_read_value;
-    assign mem_ready = ram_ready | gpio_ready | synth_ready | button_ready | uart_ready | timer_ready | flash_ready;
+    assign mem_read_value = ram_read_value | gpio_read_value | synth_read_value | led4x4_read_value |spi_read_value | button_read_value | uart_read_value | timer_read_value  | flash_read_value;
+    assign mem_ready      = ram_ready      | gpio_ready      | synth_ready      | led4x4_ready      |spi_ready      | button_ready      | uart_ready      | timer_ready       | flash_ready;
 
     bus_arbiter bus_arbiter (
         .clk(pll_clk),
         .reset(reset),
-
         /* instruction memory bus */
         .instr_address_in(instr_address),
         .instr_read_in(instr_read),
         .instr_read_value_out(instr_read_value),
         .instr_ready(instr_ready),
-
         /* data memory bus */
         .data_address_in(data_address),
         .data_read_in(data_read),
@@ -139,7 +151,6 @@ module top (
         .data_write_mask_in(data_write_mask),
         .data_write_value_in(data_write_value),
         .data_ready(data_ready),
-
         /* common memory bus */
         .address_out(mem_address),
         .read_out(mem_read),
@@ -177,8 +188,8 @@ module top (
         .cycle_out(cycle)
     );
 
+    // adress to hardware mapping
     logic ram_sel;
-    // logic leds_sel;
     logic uart_sel;
     logic timer_sel;
     logic flash_sel;
@@ -186,10 +197,10 @@ module top (
     logic gpio_sel;
     logic button_sel;
     logic synth_sel;
+    logic spi_sel;
 
     always_comb begin
         ram_sel = 0;
-        // leds_sel = 0;
         uart_sel = 0;
         timer_sel = 0;
         flash_sel = 0;
@@ -197,26 +208,29 @@ module top (
         gpio_sel = 0;
         button_sel = 0;
         synth_sel = 0;
+        spi_sel = 0;
 
         casez (mem_address)
-            32'b00000000_00000000_????????_????????: ram_sel = 1;
-            // 32'b00000000_00000001_00000000_000000??: leds_sel = 1;
-            32'b00000000_00000010_00000000_0000????: uart_sel = 1;
-            32'b00000000_00000011_00000000_0000????: timer_sel = 1;
+            32'b00000000_00000000_????????_????????: ram_sel    = 1;
+            32'b00000000_00000010_00000000_0000????: uart_sel   = 1;
+            32'b00000000_00000011_00000000_0000????: timer_sel  = 1;
             32'b00000000_00000100_00000000_0000????: led4x4_sel = 1;
-            32'b00000000_00000101_00000000_0000????: gpio_sel = 1;
+            32'b00000000_00000101_00000000_0000????: gpio_sel   = 1;
             32'b00000000_00000110_00000000_0000????: button_sel = 1;
-            32'b00000000_00000111_00000000_0000????: synth_sel = 1;
-            32'b00000001_????????_????????_????????: flash_sel = 1;
+            32'b00000000_00000111_00000000_0000????: synth_sel  = 1;
+            32'b00000000_00001000_00000000_0000????: spi_sel    = 1;
+            32'b00000001_????????_????????_????????: flash_sel  = 1;
         endcase
     end
 
+    /*********************************************************************/
+
+
+    // RAM
     logic [31:0] ram_read_value;
     logic ram_ready;
-
     ram ram (
         .clk(pll_clk),
-
         /* memory bus */
         .address_in(mem_address),
         .sel_in(ram_sel),
@@ -226,37 +240,28 @@ module top (
         .ready_out(ram_ready)
     );
 
-/*
-    logic [31:0] leds_read_value;
-    logic leds_ready;
-    assign leds_ready = leds_sel;
-    always_ff @(posedge pll_clk) begin
-        if (leds_sel && mem_write_mask[0])
-            leds <= mem_write_value[7:0];
-    end
-*/
 
-// `ifdef DOPPLER_LED4X4
-     // Doppler LED4x4 Stuff
+
+     // Doppler LED4x4 matrix
      reg    [15:0]  ledValue4x4;			 // data register for 16 leds
      logic  [31:0]  led4x4_read_value;
+     logic  led4x4_ready;
      LED4x4  myleds (.clk(pll_clk),	.ledbits(ledValue4x4)	,  .aled(aled), .kled(kled) );
      always_ff @(posedge pll_clk) begin
           if (led4x4_sel && mem_write_mask[0] && mem_write_mask[1])
             ledValue4x4   <= mem_write_value[15:0];
      end
      assign led4x4_read_value = {16'b0, led4x4_sel ? ledValue4x4 : 16'b0};
+     assign led4x4_ready = led4x4_sel;
 
-     // END DOPPLER LED4x4
 
+     // GPIO Controller F0 ... F7
      logic [31:0] gpio_read_value;
      logic gpio_ready;
      gpio_up5k gpios (
          .clk(pll_clk),
          .reset(reset),
-
          .hardware_pins(hardware_pins),
-
          /* memory bus */
          .address_in(mem_address),
          .sel_in(gpio_sel),
@@ -267,16 +272,16 @@ module top (
          .ready_out(gpio_ready)
      );
 
+     // Audio Synthesizer
      logic [31:0] synth_read_value;
      logic synth_ready;
      audiosynth asynth (
          .clk(pll_clk),
          .reset(reset),
-
+         // I2S Outs
          .I2S_LR(F9),
      		 .I2S_BCLK(F11), // SET F12 to GND -> SCL
      		 .I2S_DATA(F10),
-
          /* memory bus */
          .address_in(mem_address),
          .sel_in(synth_sel),
@@ -287,19 +292,14 @@ module top (
          .ready_out(synth_ready)
      );
 
-
-
-
-
+     // Buttons on Doppler
      logic [31:0] button_read_value;
      logic button_ready;
      doppler_buttons btns (
          .clk(pll_clk),
          .reset(reset),
-
          .button1(button1),
          .button2(button2),
-
          /* memory bus */
          .address_in(mem_address),
          .sel_in(button_sel),
@@ -310,30 +310,38 @@ module top (
          .ready_out(button_ready)
      );
 
-// `endif
+     // SPI Slave
+     logic [31:0] spi_read_value;
+     logic spi_ready;
+     spi_slave spi0 (
+         //.clk_cpu(pll_clk),
+         .clk(pll_clk),
+         .reset(reset),
+         .pin_mosi(cfg_si),
+         .pin_clk(cfg_sck),
+         .pin_cs(cfg_cs),
+         .pin_miso(cfg_so),
+         /* memory bus */
+         .address_in(mem_address),
+         .sel_in(spi_sel),
+         .read_in(mem_read),
+         .read_value_out(spi_read_value),
+         .write_mask_in(mem_write_mask),
+         .write_value_in(mem_write_value),
+         .ready_out(spi_ready)
+     );
 
 
 
-
-
-
-
-
-
-
-
-
+    // UART
     logic [31:0] uart_read_value;
     logic uart_ready;
-
     uart uart (
         .clk(pll_clk),
         .reset(reset),
-
         /* serial port */
         .rx_in(uart_rx),
         .tx_out(uart_tx),
-
         /* memory bus */
         .address_in(mem_address),
         .sel_in(uart_sel),
@@ -344,16 +352,14 @@ module top (
         .ready_out(uart_ready)
     );
 
+    // TIMER
     logic [31:0] timer_read_value;
     logic timer_ready;
-
     timer timer (
         .clk(pll_clk),
         .reset(reset),
-
         /* cycle count (from the CPU core) */
         .cycle_in(cycle),
-
         /* memory bus */
         .address_in(mem_address),
         .sel_in(timer_sel),
@@ -364,14 +370,14 @@ module top (
         .ready_out(timer_ready)
     );
 
+
+    // SPI FLASH
     logic [31:0] flash_read_value;
     logic flash_ready;
-
-`ifdef SPI_FLASH
+    `ifdef SPI_FLASH
     flash flash (
         .clk(pll_clk),
         .reset(reset),
-
         /* SPI bus */
         .clk_out(flash_clk),
         .csn_out(flash_csn),
@@ -381,7 +387,6 @@ module top (
         .io1_en(flash_io1_en),
         .io0_out(flash_io0_out),
         .io1_out(flash_io1_out),
-
         /* memory bus */
         .address_in(mem_address),
         .sel_in(flash_sel),
@@ -391,8 +396,9 @@ module top (
         .write_value_in(mem_write_value),
         .ready_out(flash_ready)
     );
-`else
+    `else
     assign flash_read_value = 0;
-    assign flash_ready = 1;
-`endif
+    assign flash_ready = flash_sel;
+    `endif
+
 endmodule
