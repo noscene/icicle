@@ -21,7 +21,6 @@
 `endif
 
 module top (
-`ifndef INTERNAL_OSC
 `ifdef INTERNAL_OSC
 `else
   input clk,
