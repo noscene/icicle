@@ -6,7 +6,7 @@
 
 module spi_slave (
     input clk,
-	//	input clk_cpu,
+		input clk_cpu,
     input reset,
 
     /* spi slave port */
@@ -45,7 +45,7 @@ module spi_slave (
 			end
 	end
 
-	always_ff @(posedge clk) begin
+	always_ff @(posedge clk_cpu) begin
 			if (sel_in) begin
 					case (address_in[3:2])
 							`SPI_DATA: begin
@@ -112,3 +112,4 @@ module spi_slave (
 
 
 endmodule
+`endif

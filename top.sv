@@ -22,7 +22,9 @@
 
 module top (
 `ifndef INTERNAL_OSC
-    input clk,
+`ifdef INTERNAL_OSC
+`else
+  input clk,
 `endif
 
 `ifdef SPI_FLASH
@@ -314,8 +316,8 @@ module top (
      logic [31:0] spi_read_value;
      logic spi_ready;
      spi_slave spi0 (
-         //.clk_cpu(pll_clk),
-         .clk(pll_clk),
+         .clk_cpu(pll_clk),
+         .clk(clk),
          .reset(reset),
          .pin_mosi(cfg_si),
          .pin_clk(cfg_sck),

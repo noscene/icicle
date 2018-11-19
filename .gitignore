@@ -2,6 +2,7 @@
 *~
 *.asc
 *.bin
+*.bin.h
 *.blif
 *.hex
 *.json
